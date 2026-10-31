@@ -833,12 +833,14 @@ export function customDomainSettings(input: {
       `In your DNS provider for ${domain}, add a CNAME record: name "@" (the root/apex) pointing to ${targetHost}. If your provider does not allow a CNAME at the apex, use its ALIAS/ANAME or flattening option with the same value.`,
       `Add a second CNAME record: name "www" pointing to ${targetHost}, so www.${domain} works too.`,
       `Set both records' TTL to auto, and if you use Cloudflare, proxy them (orange cloud) so HTTPS is terminated for you.`,
+      `Register ${domain} and www.${domain} with your hosting provider, in the app's custom-domain settings. Providers only answer for names they know about: without this step the DNS resolves but the host returns 404 (verified against Modal) and issues no certificate for your domain. Kailashe does not do this step for you — it is yours to complete in the provider's dashboard.`,
       `Wait for DNS propagation (usually a few minutes), then visit https://${domain} to confirm your deployment answers.`,
     ],
     httpsNote:
       "HTTPS is not issued by Kailashe for custom domains: proxy the records through Cloudflare (orange cloud) " +
       "for automatic Universal SSL, or enable HTTPS at your hosting provider for " +
-      `${domain} and www.${domain}.`,
+      `${domain} and www.${domain}. Registering the domain with your provider (the step above) is ` +
+      "usually what makes the provider issue that certificate.",
   };
 }
 

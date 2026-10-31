@@ -386,6 +386,9 @@ describe("customDomainSettings", () => {
     ]);
     expect(settings.steps.length).toBeGreaterThan(0);
     expect(settings.steps.join(" ")).toContain("app.vercel.app");
+    // The manual-domain decision: Kailashe prints DNS records only; the user
+    // must also register the domain with the host or it 404s (Modal-verified).
+    expect(settings.steps.join(" ")).toContain("Register mysite.com and www.mysite.com with your hosting provider");
     expect(settings.httpsNote).toMatch(/HTTPS/);
   });
 

@@ -188,4 +188,15 @@ evals detector accuracy 30/30 (100%, threshold 90%).
   (`C:\Users\Shivam\.local\bin\modal.exe`, client 1.6.3, `--version`
   exit 0). Login is still the operator's own step (`modal setup`).
 
+### 2026-10-29 — Addendum: manual custom-domain step completed
+
+- **Tenancy (packages/deploy)**: `customDomainSettings` now includes the
+  step end users must do themselves — register the domain (and its `www`
+  host) in their hosting provider's custom-domain settings. DNS alone is
+  not enough: providers answer only for names they know (verified live
+  against Modal — a foreign `Host` returns 404 and no certificate is
+  issued). Decision by the owner: end users take care of their own domain
+  manually; Kailashe prints the complete settings and does not perform
+  this step. Test locks the step wording in.
+
 <!-- Slice reports appended per Appendix B after each slice -->
