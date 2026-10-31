@@ -27,6 +27,9 @@ importers:
       '@clack/prompts':
         specifier: 0.10.1
         version: 0.10.1
+      '@kailashe/compose':
+        specifier: workspace:*
+        version: link:../compose
       '@kailashe/core':
         specifier: workspace:*
         version: link:../core

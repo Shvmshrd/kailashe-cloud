@@ -114,6 +114,52 @@ describe("runDeploy", () => {
       "Share this link: https://www.kailashe.com/v/sharetoken",
     );
     expect(formatDeployOutcome(outcome).join("\n")).not.toContain("fake-test-token");
+
+    // End to end: the same run also generates the operator-loop documents.
+    expect(outcome.artifacts).not.toBeNull();
+    expect(outcome.artifactsError).toBeNull();
+    const promptFile = join(dir, "prompt.md");
+    expect(existsSync(promptFile)).toBe(true);
+    expect(readFileSync(promptFile, "utf8")).toContain("https://bcard.kailashe.com");
+    expect(readFileSync(join(dir, "business-plan.md"), "utf8")).toContain(
+      "https://bcard.kailashe.com",
+    );
+    expect(formatDeployOutcome(outcome).join("\n")).toContain("kailashe-cloud gate prompt.md");
+  });
+
+  it("plan: false deploys without generating documents", async () => {
+    const dir = fixture(SITE);
+    const outcome = await runDeploy(
+      { dir, label: "bcard", share: "public", plan: false },
+      {
+        env: { KAILASHE_TOKEN: "fake-test-token" },
+        detectProfile: async () => STATIC_PROFILE(),
+        createClient: () => fakeClient({ publish: [] }),
+        verifyFetch: okFetch,
+      },
+    );
+    expect(outcome.status).toBe("deployed");
+    expect(outcome.artifacts).toBeNull();
+    expect(existsSync(join(dir, "prompt.md"))).toBe(false);
+  });
+
+  it("a failing plan/prompt generation never fails the deploy", async () => {
+    const dir = fixture(SITE);
+    const outcome = await runDeploy(
+      { dir, label: "bcard", share: "public" },
+      {
+        env: { KAILASHE_TOKEN: "fake-test-token" },
+        detectProfile: async () => STATIC_PROFILE(),
+        createClient: () => fakeClient({ publish: [] }),
+        verifyFetch: okFetch,
+        generateArtifacts: async () => {
+          throw new Error("template missing");
+        },
+      },
+    );
+    expect(outcome.status).toBe("deployed");
+    expect(outcome.artifacts).toBeNull();
+    expect(outcome.artifactsError).toContain("template missing");
   });
 
   it("derives a deterministic operation key from slug + content (safe retry)", async () => {
@@ -159,6 +205,7 @@ describe("runDeploy", () => {
     expect(outcome.status).toBe("not-fit");
     expect(clientCreated).toBe(false);
     expect(cliClientCreated).toBe(false);
+    expect(outcome.artifacts).toBeNull();
     const lines = formatDeployOutcome(outcome);
     expect(lines[lines.length - 1]).toBe(KAILASHE_COM_NOT_FIT_MESSAGE);
   });

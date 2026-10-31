@@ -15,8 +15,10 @@
  *        - when KAILASHE_TOKEN is set: the platform MCP endpoint with that
  *          bearer token (sent only in the Authorization header).
  *   4. Verify the live subdomain answers, then record the deploy in
- *      `.kailashe/deploy-state.json` — the business plan and Muse prompt
- *      steps that follow read the production URL from there.
+ *      `.kailashe/deploy-state.json`.
+ *   5. Generate the operator-loop documents from the deployed project —
+ *      `business-plan.md` and a composed `prompt.md` for Muse — with the
+ *      live URL as the production address (skip with `--no-plan`).
  */
 
 import { Command } from "commander";
@@ -43,6 +45,11 @@ import {
   type KailasheComPublishResult,
 } from "@kailashe/deploy";
 import { ExitCode, KailasheError, NeedsInputError, ValidationError } from "../exit-codes.js";
+import {
+  generatePostDeployArtifacts,
+  type GenerateArtifactsInput,
+  type PostDeployArtifacts,
+} from "./post-deploy.js";
 
 // ---------------------------------------------------------------------------
 // Injectable dependencies (tests pass fakes; no network in unit tests)
@@ -70,6 +77,8 @@ export interface DeployCommandDeps {
   verifyFetch?: typeof fetch;
   sleep?: (ms: number) => Promise<void>;
   promptLabel?: () => Promise<string | null>;
+  /** Post-deploy business-plan/prompt generation (default: real pipeline). */
+  generateArtifacts?: (input: GenerateArtifactsInput) => Promise<PostDeployArtifacts>;
   now?: () => Date;
 }
 
@@ -88,6 +97,10 @@ export interface DeployOutcome {
   skipped: number;
   stateFile: string | null;
   reasons: string[];
+  /** business-plan.md / prompt.md written after a successful publish. */
+  artifacts: PostDeployArtifacts | null;
+  /** Why artifact generation failed (the deploy itself still succeeded). */
+  artifactsError: string | null;
 }
 
 export interface DeployRunOptions {
@@ -96,6 +109,8 @@ export interface DeployRunOptions {
   title?: string;
   baseUrl?: string;
   share: "public" | "login" | "none";
+  /** Generate business-plan.md + prompt.md after deploying (default true). */
+  plan?: boolean;
 }
 
 const DEFAULT_BASE_URL = "https://www.kailashe.com";
@@ -268,6 +283,8 @@ export async function runDeploy(
       skipped: 0,
       stateFile: null,
       reasons: fit.reasons,
+      artifacts: null,
+      artifactsError: null,
     };
   }
 
@@ -334,6 +351,26 @@ export async function runDeploy(
     deps.sleep ?? ((ms) => new Promise((resolve) => setTimeout(resolve, ms))),
   );
 
+  // 7. End to end: generate the business plan and the Muse prompt from the
+  //    deployed project, addressed at the live URL. A failure here never
+  //    fails the deploy — the site is already live.
+  let artifacts: PostDeployArtifacts | null = null;
+  let artifactsError: string | null = null;
+  if (opts.plan !== false) {
+    try {
+      artifacts = await (deps.generateArtifacts ?? generatePostDeployArtifacts)({
+        dir: root,
+        slug,
+        liveUrl: result.liveUrl,
+        shareUrl: result.shareUrl,
+        profile,
+        now,
+      });
+    } catch (err) {
+      artifactsError = err instanceof Error ? err.message : String(err);
+    }
+  }
+
   return {
     status: verified ? "deployed" : "unverified",
     via,
@@ -347,6 +384,8 @@ export async function runDeploy(
     skipped: site.skipped.length,
     stateFile,
     reasons: fit.reasons,
+    artifacts,
+    artifactsError,
   };
 }
 
@@ -373,10 +412,23 @@ export function formatDeployOutcome(outcome: DeployOutcome): string[] {
     );
   }
   lines.push("");
-  lines.push("Next steps (the operator loop continues with this exact production URL):");
-  lines.push(`- business plan: write business-plan.md for the site live at ${outcome.liveUrl}`);
-  lines.push(`- Muse prompt: compose prompt.md with ${outcome.liveUrl} as the production address`);
-  lines.push("- then: kailashe gate prompt.md");
+  if (outcome.artifacts !== null) {
+    lines.push("Operator loop documents generated (production address: the live URL above):");
+    lines.push(`- business plan: ${outcome.artifacts.businessPlanFile}`);
+    lines.push(`- Muse prompt: ${outcome.artifacts.promptFile}`);
+    for (const file of outcome.artifacts.appendixFiles) lines.push(`- appendix: ${file}`);
+    lines.push("- then: kailashe-cloud gate prompt.md");
+  } else if (outcome.artifactsError !== null) {
+    lines.push(
+      `Note: the site is live, but business-plan/prompt generation failed: ${outcome.artifactsError}`,
+    );
+    lines.push("- re-run deploy (safe: same label + content updates the same site) to retry.");
+  } else {
+    lines.push("Next steps (the operator loop continues with this exact production URL):");
+    lines.push(`- business plan: write business-plan.md for the site live at ${outcome.liveUrl}`);
+    lines.push(`- Muse prompt: compose prompt.md with ${outcome.liveUrl} as the production address`);
+    lines.push("- then: kailashe-cloud gate prompt.md");
+  }
   return lines;
 }
 
@@ -403,11 +455,12 @@ export function createDeployCommand(deps: DeployCommandDeps = {}): Command {
     .option("--title <title>", "site title (default: the label)")
     .option("--base <url>", "kailashe.com base URL (default: https://www.kailashe.com)")
     .option("--share <policy>", "share link to create: public, login or none", "public")
+    .option("--no-plan", "deploy only: skip generating business-plan.md and prompt.md")
     .option("--json", "emit the deploy outcome as one JSON object")
     .action(
       async (
         dir: string | undefined,
-        flags: { label?: string; title?: string; base?: string; share: string; json?: boolean },
+        flags: { label?: string; title?: string; base?: string; share: string; plan?: boolean; json?: boolean },
       ) => {
         if (flags.share !== "public" && flags.share !== "login" && flags.share !== "none") {
           console.error(`Invalid --share "${flags.share}" (expected public, login or none).`);
@@ -422,6 +475,7 @@ export function createDeployCommand(deps: DeployCommandDeps = {}): Command {
               title: flags.title,
               baseUrl: flags.base,
               share: flags.share,
+              plan: flags.plan,
             },
             {
               ...deps,

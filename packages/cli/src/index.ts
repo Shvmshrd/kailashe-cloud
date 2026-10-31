@@ -57,7 +57,7 @@ function applyExitOverride(cmd: Command): void {
 export function buildProgram(): Command {
   const program = new Command();
   program
-    .name("kailashe")
+    .name("kailashe-cloud")
     .description("Kailashe — deploy and operate side projects")
     .version(VERSION, "--version");
 

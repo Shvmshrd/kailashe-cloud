@@ -2,7 +2,7 @@
  * Minimal local Registrar contract used by `kailashe domain add`.
  *
  * NOTE(upstream): `@kailashe/deploy` exposes no `main`/`exports` in its
- * package.json (and @kailashe/cli does not declare it as a dependency), so
+ * package.json (and kailashe-cloud does not declare it as a dependency), so
  * `@kailashe/deploy/registrar.js` cannot be resolved here. This mirrors the
  * structural contract in packages/deploy/src/registrar.ts (S6) so the CLI
  * builds standalone; wire the real package once its exports are fixed.

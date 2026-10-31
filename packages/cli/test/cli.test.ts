@@ -7,7 +7,7 @@ import { buildProgram, createProgram, parse, run, VERSION } from "../src/index.j
 import { runDoctorChecks, formatDoctorOutput } from "../src/doctor.js";
 
 const here = path.dirname(fileURLToPath(import.meta.url));
-const binPath = path.resolve(here, "../bin/kailashe.js");
+const binPath = path.resolve(here, "../bin/kailashe-cloud.js");
 
 describe("CLI --version", () => {
   beforeEach(() => { process.exitCode = undefined; });
@@ -40,7 +40,7 @@ describe("CLI --version", () => {
     });
   });
 
-  it("bin/kailashe.js --version exits 0 and prints version (requires build)", () => {
+  it("bin/kailashe-cloud.js --version exits 0 and prints version (requires build)", () => {
     const out = execFileSync(process.execPath, [binPath, "--version"], { encoding: "utf-8" });
     expect(out.trim()).toBe(VERSION);
   });

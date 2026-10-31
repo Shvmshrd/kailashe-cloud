@@ -282,4 +282,27 @@ evals detector accuracy 30/30 (100%, threshold 90%).
   (exit 0). No secrets in any generated file (token mentions are
   template boilerplate only).
 
+### 2026-11-01 — S16 follow-up: one-command flow (`kailashe-cloud deploy`)
+
+- **End-to-end deploy**: `kailashe deploy` now finishes the operator
+  loop in the same run — after the publish verifies, it generates
+  `business-plan.md` + `prompt.md` (deterministic plan/compose, facts
+  sourced from README/package.json/index.html, unknowns listed, live
+  URL as the production address) via new
+  `packages/cli/src/commands/post-deploy.ts`. `--no-plan` opts out; a
+  generation failure warns but never fails a live deploy.
+- **Package renamed** `@kailashe/cli` → `kailashe-cloud` (bin
+  `kailashe-cloud`): the old name collided with the official platform
+  package `@kailashe/cli` — a global `npm link` of ours replaced the
+  platform CLI's global install on this machine (restored with
+  `npm install -g @kailashe/cli`; verified signed-in after). With
+  distinct names, `cd packages/cli && npm link` puts `kailashe-cloud`
+  on PATH alongside the platform's `kailashe`. Verified from a foreign
+  folder: `--version` 0.1.0, dynamic fixture deploy → not-fit exit 6
+  with no files written, platform `whoami` still `ok`.
+- User flow is now: clone → `pnpm install` → `pnpm build` → `npm link`
+  (in packages/cli) → `cd <project>` → `kailashe-cloud deploy`.
+  Recording steps updated in `New folder/VCARD-RECORDING-STEPS.md`.
+  Gate: 646 tests green (cli 83, +4), typecheck + lint clean.
+
 <!-- Slice reports appended per Appendix B after each slice -->

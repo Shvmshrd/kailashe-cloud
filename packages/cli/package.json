@@ -1,11 +1,11 @@
 {
-  "name": "@kailashe/cli",
+  "name": "kailashe-cloud",
   "version": "0.1.0",
   "description": "Kailashe CLI",
   "license": "MIT",
   "type": "module",
   "engines": { "node": ">=20" },
-  "bin": { "kailashe": "./bin/kailashe.js" },
+  "bin": { "kailashe-cloud": "./bin/kailashe-cloud.js" },
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
   "exports": { ".": "./dist/index.js" },
@@ -17,6 +17,7 @@
     "lint": "eslint src --ext .ts"
   },
   "dependencies": {
+    "@kailashe/compose": "workspace:*",
     "@kailashe/core": "workspace:*",
     "@kailashe/deploy": "workspace:*",
     "@kailashe/plan": "workspace:*",
