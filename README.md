@@ -27,23 +27,28 @@ step — the folder is uploaded as-is, so publish your build output folder
 (`dist/`, `public/`, …) or any folder with an `index.html` at its root.
 
 ```sh
-# one-time: create a personal token in your kailashe.com account, then
-# set it in your own terminal (never commit it, never paste it into chat)
-export KAILASHE_TOKEN=…          # PowerShell: $env:KAILASHE_TOKEN = "…"
+# one-time: install the platform CLI and sign in once in your browser
+# (Kailashe runs `kailashe login` for you if you are signed out)
+npm install -g @kailashe/cli
 npx kailashe deploy ./dist --label bcard        # → https://bcard.kailashe.com
 npx kailashe deploy .                           # asks for the label interactively
 npx kailashe deploy ./dist --label bcard --share none --json
 ```
+
+No token handling is needed for the default route: deploy checks the
+platform CLI's login (`kailashe whoami`), runs `kailashe login` if you
+are signed out, and publishes through that stored login — the token file
+is read only by that CLI, never by Kailashe. If you prefer, set
+`KAILASHE_TOKEN` in your own terminal instead and the same command
+publishes over the platform's MCP endpoint with that token (sent only as
+a bearer header, never logged or written to disk).
 
 Dynamic projects (server apps, APIs, anything that is not static HTML)
 are refused with *"The website is not fit for Kailashe at the moment.
 Please stick around as we add more features to it."* (exit 6) — host
 those on a provider below instead. A successful deploy is recorded in
 `.kailashe/deploy-state.json`; the business-plan and prompt steps that
-follow read the production URL from there. Publishing uses the
-platform's MCP endpoint (`KAILASHE_TOKEN`, or `KAILASHE_BASE_URL` for a
-self-hosted deployment); the token is sent only as a bearer header and
-is never logged or written to disk.
+follow read the production URL from there.
 
 `deploy` always asks which provider to use (it preselects one with a reason; AWS is never preselected), shows an exact plan — resources, commands, monthly cost, rollback — and runs nothing create/modify/delete until you approve.
 

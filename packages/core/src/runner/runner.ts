@@ -411,8 +411,11 @@ export class SafeRunner {
       reject: false,
       // execa defaults to no shell — a shell is never enabled here
       input: options.stdin,
-      // Ensure we capture output
-      buffer: true,
+      // Interactive logins (device/browser flows) inherit the terminal so the
+      // user sees the sign-in URL/code live; output then cannot be captured.
+      ...(options.stdio === "inherit" ? { stdio: "inherit" as const } : {}),
+      // Ensure we capture output (disabled when stdio is inherited)
+      buffer: options.stdio !== "inherit",
     };
 
     let rawStdout = "";

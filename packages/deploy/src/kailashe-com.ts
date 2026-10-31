@@ -360,6 +360,19 @@ export interface KailasheComPublishResult {
   kind: string | null;
 }
 
+/** https://<slug>.<apex> for the platform host (www.kailashe.com → kailashe.com). */
+export function kailasheComLiveUrl(baseUrl: string, slug: string): string {
+  const base = baseUrl.replace(/\/+$/, "");
+  try {
+    const host = new URL(base).hostname;
+    const apex = host.startsWith("www.") ? host.slice("www.".length) : host;
+    if (apex.includes(".")) return `https://${slug}.${apex}`;
+  } catch {
+    /* fall through to the site URL */
+  }
+  return `${base}/s/${slug}`;
+}
+
 function errorMessageFromBody(body: string): string | null {
   try {
     const parsed: unknown = JSON.parse(body);
@@ -472,14 +485,7 @@ export class KailasheComClient {
 
   /** https://<slug>.<apex> for the platform host (www.kailashe.com → kailashe.com). */
   private liveUrlFor(slug: string): string {
-    try {
-      const host = new URL(this.baseUrl).hostname;
-      const apex = host.startsWith("www.") ? host.slice("www.".length) : host;
-      if (apex.includes(".")) return `https://${slug}.${apex}`;
-    } catch {
-      /* fall through to the site URL */
-    }
-    return `${this.baseUrl}/s/${slug}`;
+    return kailasheComLiveUrl(this.baseUrl, slug);
   }
 
   private inlineSize(site: CollectedStaticSite): number {

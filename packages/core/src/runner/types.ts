@@ -112,6 +112,15 @@ export interface RunOptions {
    * The stdin value is always redacted in logs/audit.
    */
   readonly stdin?: string;
+  /**
+   * Output handling. "pipe" (default) captures stdout/stderr for redaction,
+   * truncation and audit. "inherit" attaches the subprocess to this process's
+   * stdio — required for interactive provider logins (device/browser flows)
+   * where the user must see the sign-in URL/code as it is printed. With
+   * "inherit" nothing is captured, so stdout/stderr come back empty; the
+   * audit log still records the (redacted) command, path, version and exit.
+   */
+  readonly stdio?: "pipe" | "inherit";
 }
 
 /**

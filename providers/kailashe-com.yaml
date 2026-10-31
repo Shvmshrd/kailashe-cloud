@@ -1,0 +1,46 @@
+id: kailashe-com
+name: Kailashe.com
+cliBinary: kailashe
+install:
+  - os: linux
+    command: "npm install -g @kailashe/cli"
+    sourceUrl: "https://www.kailashe.com/for-agents.md"
+    notes: "Official kailashe.com platform CLI (npm). Note: this is the platform's published CLI; it shares the `kailashe` binary name with this tool, so the runner resolves the npm-global shim (kailashe.cmd on Windows)."
+  - os: macos
+    command: "npm install -g @kailashe/cli"
+    sourceUrl: "https://www.kailashe.com/for-agents.md"
+    notes: "Official kailashe.com platform CLI (npm). Note: this is the platform's published CLI; it shares the `kailashe` binary name with this tool, so the runner resolves the npm-global shim."
+  - os: windows
+    command: "npm install -g @kailashe/cli"
+    sourceUrl: "https://www.kailashe.com/for-agents.md"
+    notes: "Official kailashe.com platform CLI (npm). Note: this is the platform's published CLI; it shares the `kailashe` binary name with this tool, so the runner resolves the npm-global kailashe.cmd shim."
+login:
+  command: "kailashe login"
+  docsUrl: "https://www.kailashe.com/for-agents.md"
+  helpText: "Device authorisation in the browser: the CLI prints a message to show the user verbatim and opens the browser; the token it stores is read only by that CLI — Kailashe never reads the token file."
+verify:
+  command: "kailashe whoami"
+  expectedExitCode: 0
+docsDomains:
+  - www.kailashe.com
+  - kailashe.com
+allowedPatterns:
+  - pattern: "kailashe --version"
+    class: read
+  - pattern: "kailashe --json whoami"
+    class: read
+    notes: "Login check used by `kailashe deploy` before publishing."
+  - pattern: "kailashe whoami"
+    class: read
+    notes: "Verify step."
+  - pattern: "kailashe login"
+    class: iam-billing-network
+    notes: "Login only, run with inherited stdio so the user sees the device/browser prompt."
+  - pattern: "kailashe --json publish"
+    class: create
+    notes: "Publish a static site at https://<slug>.kailashe.com; run only after the login check (deploy approval)."
+health:
+  path: "/"
+  timeoutMs: 15000
+tagging:
+  key: kailashe-project

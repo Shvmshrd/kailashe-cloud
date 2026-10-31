@@ -13,7 +13,7 @@ import {
   type ProviderFs,
 } from "../src/providers.js";
 
-const EXPECTED_IDS = ["aws", "cloudflare", "cloudflare-workers", "digitalocean", "fly", "modal", "vercel"];
+const EXPECTED_IDS = ["aws", "cloudflare", "cloudflare-workers", "digitalocean", "fly", "kailashe-com", "modal", "vercel"];
 
 function fakeFs(files: Record<string, string>): ProviderFs {
   return {
@@ -47,7 +47,7 @@ allowedPatterns:
 `;
 
 describe("real providers/*.yaml registry", () => {
-  it("loads exactly the five first providers, all valid", async () => {
+  it("loads exactly the registered providers, all valid", async () => {
     const providers = await loadProviders(DEFAULT_PROVIDERS_DIR);
     expect(providers.map((p) => p.id)).toEqual(EXPECTED_IDS);
   });
@@ -103,6 +103,7 @@ describe("real providers/*.yaml registry", () => {
       "cloudflare-workers": ["developers.cloudflare.com"],
       fly: ["fly.io"],
       modal: ["modal.com"],
+      "kailashe-com": ["www.kailashe.com"],
     };
     for (const p of providers) {
       for (const entry of p.install) {

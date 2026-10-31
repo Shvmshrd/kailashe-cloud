@@ -139,6 +139,7 @@ describe("runDeploy", () => {
       "server.js": "require('express')().listen(3000);",
     });
     let clientCreated = false;
+    let cliClientCreated = false;
     const outcome = await runDeploy(
       { dir, label: "bcard", share: "public" },
       {
@@ -148,11 +149,16 @@ describe("runDeploy", () => {
           clientCreated = true;
           return fakeClient({ publish: [] });
         },
+        createCliClient: () => {
+          cliClientCreated = true;
+          return fakeClient({ publish: [] });
+        },
         verifyFetch: okFetch,
       },
     );
     expect(outcome.status).toBe("not-fit");
     expect(clientCreated).toBe(false);
+    expect(cliClientCreated).toBe(false);
     const lines = formatDeployOutcome(outcome);
     expect(lines[lines.length - 1]).toBe(KAILASHE_COM_NOT_FIT_MESSAGE);
   });
@@ -172,7 +178,39 @@ describe("runDeploy", () => {
     expect(formatDeployOutcome(outcome).join("\n")).toContain(KAILASHE_COM_NOT_FIT_MESSAGE);
   });
 
-  it("requires KAILASHE_TOKEN before publishing (never reads credential files)", async () => {
+  it("without a token, publishes through the platform CLI login instead of MCP", async () => {
+    const dir = fixture(SITE);
+    const calls = { publish: [] as unknown[] };
+    let mcpCreated = false;
+    let cliCreated = false;
+    const outcome = await runDeploy(
+      { dir, label: "bcard", share: "public" },
+      {
+        env: {},
+        detectProfile: async () => STATIC_PROFILE(),
+        createClient: () => {
+          mcpCreated = true;
+          return fakeClient(calls);
+        },
+        createCliClient: () => {
+          cliCreated = true;
+          return fakeClient(calls);
+        },
+        verifyFetch: okFetch,
+      },
+    );
+    expect(outcome.status).toBe("deployed");
+    expect(outcome.via).toBe("platform-cli");
+    expect(outcome.liveUrl).toBe("https://bcard.kailashe.com");
+    expect(mcpCreated).toBe(false);
+    expect(cliCreated).toBe(true);
+    expect(calls.publish).toHaveLength(1);
+    const state = readFileSync(join(dir, ".kailashe", "deploy-state.json"), "utf8");
+    expect(state).toContain('"via": "platform-cli"');
+    expect(formatDeployOutcome(outcome).join("\n")).toContain("platform CLI login");
+  });
+
+  it("surfaces platform CLI auth failures as auth errors (never reads credential files)", async () => {
     const dir = fixture(SITE);
     await expect(
       runDeploy(
@@ -180,7 +218,15 @@ describe("runDeploy", () => {
         {
           env: {},
           detectProfile: async () => STATIC_PROFILE(),
-          createClient: () => fakeClient({ publish: [] }),
+          createCliClient: () => ({
+            base: "https://www.kailashe.com",
+            async connection() {
+              throw new KailasheComAuthError("not signed in");
+            },
+            async publishSite() {
+              throw new Error("must not publish");
+            },
+          }),
           verifyFetch: okFetch,
         },
       ),

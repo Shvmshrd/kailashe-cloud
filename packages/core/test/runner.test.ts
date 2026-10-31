@@ -795,6 +795,18 @@ describe("SafeRunner integration", () => {
     expect(result.riskClass).toBe("read");
   });
 
+  it("supports inherited stdio for interactive logins (nothing captured)", async () => {
+    const runner = makeRunner({ allowlist: nodeAllowlist });
+    const result = await runner.run({
+      binary: "node",
+      args: ["-e", "console.log('shown-on-the-terminal-not-captured')"],
+      stdio: "inherit",
+    });
+    expect(result.exitCode).toBe(0);
+    expect(result.stdout).toBe("");
+    expect(result.stderr).toBe("");
+  });
+
   it("throws AllowlistDeniedError for non-allowlisted command", async () => {
     const runner = makeRunner({ allowlist: nodeAllowlist });
     await expect(runner.run({ binary: "node", args: ["--unknown-flag"] })).rejects.toThrow(AllowlistDeniedError);

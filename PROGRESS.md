@@ -247,4 +247,39 @@ evals detector accuracy 30/30 (100%, threshold 90%).
   publish is pending the owner's `KAILASHE_TOKEN`** (personal token set
   in their own terminal — credentials are never pasted into chat).
 
+### 2026-11-01 — S16 addendum: login-first publish route + live deploy
+
+- **Login-first route (owner-directed)**: without `KAILASHE_TOKEN`, deploy
+  now publishes through the official platform CLI's stored login instead
+  of demanding a token: `kailashe --json whoami` → `kailashe login` (only
+  when signed out, run with inherited stdio via the new SafeRunner
+  `stdio: "inherit"` option) → `kailashe --json publish`. New module
+  `packages/deploy/src/platform-cli.ts` + `providers/kailashe-com.yaml`
+  register the `kailashe-com` provider; all subprocess calls go through
+  the core SafeRunner with that allowlist (whoami read, login
+  iam-billing-network, publish create). This allowlist addition was
+  authorized by the owner's explicit instruction to "check if cli is
+  login if not run the command for login". The CLI's token file is read
+  only by that CLI — Kailashe never reads it. `KAILASHE_TOKEN` still
+  selects the MCP route. On Windows the allowlist targets `kailashe.cmd`
+  (the bare name is an unspawnable sh shim).
+- **Gate**: 642 tests green workspace-wide (deploy 192 incl. 10 new
+  platform-cli tests over a fake runner; cli 79; core 167 incl. the new
+  inherited-stdio test). Typecheck + lint clean.
+- **Live deploy (the acceptance test)**: `kailashe deploy "New
+  folder\vcard-personal-portfolio-master" --label bcard` → exit 0:
+  Live https://bcard.kailashe.com · share link
+  https://www.kailashe.com/v/XByRxYSowMfqQBja_WYXcEXr-b72cBE4 ·
+  published under the CLI's stored login · 41 files, 1,248,907 bytes ·
+  2 hidden paths skipped · state recorded in the site's
+  `.kailashe/deploy-state.json`. Independently verified: live URL 200,
+  share link 200, served HTML is the vCard page.
+- **Post-deploy step**: `business-plan.md`, `prompt.md` (3,142 words)
+  and `appendix-01.md` generated in the vCard folder from the plan +
+  compose pipeline (archetype content-media), with
+  https://bcard.kailashe.com as the production address read from
+  deploy-state.json; `kailashe gate prompt.md --yes --json` passes
+  (exit 0). No secrets in any generated file (token mentions are
+  template boilerplate only).
+
 <!-- Slice reports appended per Appendix B after each slice -->

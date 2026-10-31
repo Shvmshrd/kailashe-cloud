@@ -7,8 +7,13 @@
  *   2. Static fit check. A dynamic project, a server app, or a folder
  *      without an index.html entry is refused with the not-fit message
  *      (exit 6) before any network call.
- *   3. Publish the folder as-is via the platform MCP endpoint
- *      (KAILASHE_TOKEN bearer credential, never logged or persisted).
+ *   3. Publish the folder as-is. Two credential routes, neither of which
+ *      ever lets Kailashe read a credential file:
+ *        - default: the platform's own CLI (`@kailashe/cli`) and the login
+ *          it stores on this machine — checked with `whoami`, created with
+ *          `kailashe login` when signed out, all through the safe runner;
+ *        - when KAILASHE_TOKEN is set: the platform MCP endpoint with that
+ *          bearer token (sent only in the Authorization header).
  *   4. Verify the live subdomain answers, then record the deploy in
  *      `.kailashe/deploy-state.json` — the business plan and Muse prompt
  *      steps that follow read the production URL from there.
@@ -21,6 +26,7 @@ import { mkdir, writeFile } from "node:fs/promises";
 import * as path from "node:path";
 import { text as clackText, isCancel } from "@clack/prompts";
 import { DeployStateSchema, type DeployState } from "@kailashe/core/schemas/deploy-state.js";
+import { SafeRunner } from "@kailashe/core/runner/runner.js";
 import { detectProjectProfile, type DetectedProfile } from "@kailashe/scan";
 import {
   KAILASHE_COM_NOT_FIT_MESSAGE,
@@ -29,6 +35,10 @@ import {
   KailasheComError,
   assessKailasheComFit,
   collectStaticSite,
+  ensurePlatformCliLogin,
+  platformCliAllowlist,
+  platformCliBinaryName,
+  publishWithPlatformCli,
   validateSubdomainLabel,
   type KailasheComPublishResult,
 } from "@kailashe/deploy";
@@ -54,6 +64,8 @@ export interface DeployCommandDeps {
   env?: Record<string, string | undefined>;
   detectProfile?: (dir: string) => Promise<DetectedProfile>;
   createClient?: (opts: { baseUrl: string; token: string }) => DeployPublishClient;
+  /** Platform-CLI client factory (used when no KAILASHE_TOKEN is set). */
+  createCliClient?: (opts: { baseUrl: string; dir: string }) => DeployPublishClient;
   /** Unauthenticated fetch used only to verify the live URL answers. */
   verifyFetch?: typeof fetch;
   sleep?: (ms: number) => Promise<void>;
@@ -61,8 +73,11 @@ export interface DeployCommandDeps {
   now?: () => Date;
 }
 
+export type DeployVia = "mcp" | "platform-cli";
+
 export interface DeployOutcome {
   status: "deployed" | "not-fit" | "unverified";
+  via: DeployVia | null;
   slug: string | null;
   liveUrl: string | null;
   siteUrl: string | null;
@@ -110,9 +125,45 @@ export function deployOperationKey(
   return `deploy-${slug}-${hash.digest("hex").slice(0, 16)}`;
 }
 
+/**
+ * Default publish client backed by the platform's own CLI. All commands go
+ * through the core SafeRunner (allowlist, redaction, audit); the CLI's
+ * stored login is used by that CLI itself — the token file is never read
+ * here. `connection()` is the login gate: whoami → login → whoami.
+ */
+function defaultCreateCliClient(opts: { baseUrl: string; dir: string }): DeployPublishClient {
+  const binary = platformCliBinaryName();
+  const runner = new SafeRunner({
+    projectRoot: opts.dir,
+    allowlist: platformCliAllowlist(binary),
+    defaultTimeoutMs: 600_000,
+  });
+  const cli = { runner, binary, baseUrl: opts.baseUrl, cwd: opts.dir };
+  return {
+    base: opts.baseUrl,
+    async connection() {
+      const login = await ensurePlatformCliLogin(cli);
+      return { email: login.account };
+    },
+    async publishSite(input) {
+      // The platform CLI re-reads and validates the folder itself; `site`
+      // was already collected above for the fit/limit checks.
+      return publishWithPlatformCli({
+        ...cli,
+        dir: opts.dir,
+        slug: input.slug,
+        title: input.title,
+        share: input.share,
+        operationKey: input.operationKey,
+      });
+    },
+  };
+}
+
 function stateForDeploy(input: {
   slug: string;
   result: KailasheComPublishResult;
+  via: DeployVia;
   now: Date;
 }): DeployState {
   const at = input.now.toISOString();
@@ -133,6 +184,7 @@ function stateForDeploy(input: {
         details: {
           siteUrl: input.result.siteUrl,
           shareUrl: input.result.shareUrl,
+          via: input.via,
         },
       },
     ],
@@ -141,7 +193,10 @@ function stateForDeploy(input: {
     stepLog: [
       {
         step: 0,
-        command: ["mcp", "kailashe_publish", input.slug],
+        command:
+          input.via === "mcp"
+            ? ["mcp", "kailashe_publish", input.slug]
+            : ["kailashe", "publish", input.slug],
         status: "succeeded",
         startedAt: at,
         finishedAt: at,
@@ -202,6 +257,7 @@ export async function runDeploy(
   if (!fit.fit || site === null) {
     return {
       status: "not-fit",
+      via: null,
       slug: null,
       liveUrl: null,
       siteUrl: null,
@@ -235,19 +291,25 @@ export async function runDeploy(
   }
   const slug = labelCheck.label;
 
-  // 4. Credential: environment only, never read from credential files.
-  const token = env["KAILASHE_TOKEN"] ?? env["ARTIFACT_HUB_TOKEN"];
-  if (token === undefined || token.trim() === "") {
-    throw new KailasheComAuthError(
-      "No Kailashe token. Create a personal token in your account on kailashe.com, set it as the KAILASHE_TOKEN environment variable in your own terminal, then re-run. Never paste a token into chat or commit it.",
-    );
-  }
-
+  // 4. Credential route. With KAILASHE_TOKEN set, publish over MCP with
+  //    that token. Otherwise use the platform CLI's stored login (checked,
+  //    and created via `kailashe login` when needed, inside connection()).
+  //    Either way the credential material itself is handled only by its
+  //    owner — never read from a credential file, never logged.
   const baseUrl = (opts.baseUrl ?? env["KAILASHE_BASE_URL"] ?? DEFAULT_BASE_URL).replace(/\/+$/, "");
-  const client = (deps.createClient ?? (({ baseUrl: b, token: t }) => new KailasheComClient({ baseUrl: b, token: t })))({
-    baseUrl,
-    token,
-  });
+  const token = env["KAILASHE_TOKEN"] ?? env["ARTIFACT_HUB_TOKEN"];
+  let via: DeployVia;
+  let client: DeployPublishClient;
+  if (token !== undefined && token.trim() !== "") {
+    via = "mcp";
+    client = (deps.createClient ?? (({ baseUrl: b, token: t }) => new KailasheComClient({ baseUrl: b, token: t })))({
+      baseUrl,
+      token,
+    });
+  } else {
+    via = "platform-cli";
+    client = (deps.createCliClient ?? defaultCreateCliClient)({ baseUrl, dir: root });
+  }
 
   const connection = await client.connection();
   const title = opts.title ?? slug;
@@ -263,7 +325,7 @@ export async function runDeploy(
   const now = (deps.now ?? (() => new Date()))();
   const stateFile = path.join(root, ".kailashe", "deploy-state.json");
   await mkdir(path.dirname(stateFile), { recursive: true });
-  await writeFile(stateFile, `${JSON.stringify(stateForDeploy({ slug, result, now }), null, 2)}\n`, "utf8");
+  await writeFile(stateFile, `${JSON.stringify(stateForDeploy({ slug, result, via, now }), null, 2)}\n`, "utf8");
 
   // 6. Verify the live address the way a visitor would (no credentials).
   const verified = await verifyLiveUrl(
@@ -274,6 +336,7 @@ export async function runDeploy(
 
   return {
     status: verified ? "deployed" : "unverified",
+    via,
     slug,
     liveUrl: result.liveUrl,
     siteUrl: result.siteUrl,
@@ -296,6 +359,9 @@ export function formatDeployOutcome(outcome: DeployOutcome): string[] {
   if (outcome.shareUrl !== null) lines.push(`Share this link: ${outcome.shareUrl}`);
   lines.push(`Site: ${outcome.siteUrl}`);
   if (outcome.account !== null) lines.push(`Published under: ${outcome.account}`);
+  if (outcome.via === "platform-cli") {
+    lines.push("Auth: platform CLI login stored on this machine (the token file is read only by that CLI).");
+  }
   lines.push(`Files: ${outcome.files} (${outcome.bytes} bytes)`);
   if (outcome.skipped > 0) {
     lines.push(`Skipped ${outcome.skipped} hidden or excluded path(s) — not uploaded (the platform cannot serve them).`);

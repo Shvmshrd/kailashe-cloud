@@ -26,7 +26,7 @@ Owners (SPEC Q12; names filled in by the owner): Agent engineer — S0, S1, S4, 
 | S15 | Muse connector — SPEC ONLY, do not build | — | Lead | — |
 | S16 | kailashe.com static deploy (`kailashe deploy`) | S2, S5 | Agent engineer | — |
 
-**Status 2026-11-01: S16 code DONE** (gate green; live publish pending the owner's `KAILASHE_TOKEN`) — `kailashe deploy` publishes a static HTML
+**Status 2026-11-01: S16 DONE** (gate green; live publish verified) — `kailashe deploy` publishes a static HTML
 site to the hosted kailashe.com platform (remote MCP, `KAILASHE_TOKEN`) and
 returns the live `<label>.kailashe.com` URL, recorded in
 `.kailashe/deploy-state.json` for the plan/prompt steps that follow. Dynamic
