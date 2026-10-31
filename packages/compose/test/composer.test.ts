@@ -4,6 +4,7 @@ import {
   lint,
   renderTemplate,
   extractSkillBody,
+  extractOpsLoopSection,
   scanSecrets,
   findPlaceholders,
   wrapThirdPartyBlock,
@@ -188,6 +189,39 @@ describe("compose rendering", () => {
     expect(s10).toContain("weekly report");
     expect(s10).toContain("Spend and tool usage");
     expect(s10).not.toContain("INCLUDE:");
+  });
+
+  it("extracts ops-loop sections from a CRLF checkout (Windows CI)", () => {
+    // A CRLF file must not defeat the exact section-heading match: GitHub's
+    // Windows runners check the pack out with CRLF line endings.
+    const lf = [
+      "# Ops loop",
+      "",
+      "## 1. Project HQ",
+      "",
+      "00 Brief lives here.",
+      "",
+      "## 2. Task schema",
+      "",
+      "not this section",
+      "",
+      "## 7. Weekly report",
+      "",
+      "```md",
+      "# <Project> weekly report",
+      "## Headline",
+      "```",
+      "",
+      "## 8. Later",
+      "",
+    ].join("\n");
+    const crlf = lf.replace(/\n/g, "\r\n");
+    const hq = extractOpsLoopSection(crlf, 1);
+    expect(hq).toContain("00 Brief lives here.");
+    expect(hq).not.toContain("not this section");
+    const report = extractOpsLoopSection(crlf, 7);
+    expect(report).toContain("## Headline");
+    expect(report).not.toContain("## 8. Later");
   });
 
   it("honours explicit template / skillBody / HQ overrides without touching the filesystem pack", () => {

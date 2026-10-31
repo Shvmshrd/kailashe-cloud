@@ -142,7 +142,9 @@ export function extractSkillBody(skillMd: string): string {
  */
 export function extractOpsLoopSection(opsLoopMd: string, section: 1 | 7): string {
   const marker = section === 1 ? "## 1. Project HQ" : "## 7. Weekly report";
-  const lines = opsLoopMd.split("\n");
+  // Normalize line endings first: a CRLF checkout (Windows CI) must not
+  // defeat the exact section-heading match below.
+  const lines = opsLoopMd.replace(/\r\n?/g, "\n").split("\n");
   const start = lines.findIndex((l) => l === marker);
   if (start === -1) return "";
   // A section ends at the next `## ` heading outside a code fence — the weekly
