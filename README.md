@@ -14,27 +14,27 @@ cd kailashe-cloud
 pnpm install && pnpm build
 cd packages/cli && npm link && cd ../..   # one-time: puts `kailashe-cloud` on your PATH
 
-cd ../your-static-site
+cd ../your-site
 kailashe-cloud deploy        # publish → live URL, then write business-plan.md + prompt.md
 kailashe-cloud gate prompt.md
 ```
 
 Other commands: `kailashe-cloud init` (install the operator skill pack), `doctor`, `validate-pack`, `graph` (read + graph the project, show the first hosting step), `domain` (tenant subdomain claims).
 
-### Deploying a static site to kailashe.com
+### Deploying a site to kailashe.com
 
-`kailashe deploy` publishes a **static HTML site** to the hosted
+`kailashe-cloud deploy` publishes a **site** to the hosted
 [kailashe.com](https://www.kailashe.com) platform and returns the live
 address you selected: `https://<label>.kailashe.com`. There is no build
 step — the folder is uploaded as-is, so publish your build output folder
-(`dist/`, `public/`, …) or any folder with an `index.html` at its root.
+(`dist/`, `public/`, …) or any ready-to-serve site folder.
 
 ```sh
 # one-time: install the platform CLI and sign in once in your browser
 # (Kailashe runs `kailashe login` for you if you are signed out)
 npm install -g @kailashe/cli
 
-cd your-static-site
+cd your-site
 kailashe-cloud deploy                    # asks for the label → https://<label>.kailashe.com
 kailashe-cloud deploy --label bcard      # or pass it directly
 kailashe-cloud deploy --label bcard --share none --no-plan --json
@@ -48,16 +48,21 @@ is read only by that CLI, never by Kailashe. If you prefer, set
 publishes over the platform's MCP endpoint with that token (sent only as
 a bearer header, never logged or written to disk).
 
-Dynamic projects (server apps, APIs, anything that is not static HTML)
-are refused with *"The website is not fit for Kailashe at the moment.
-Please stick around as we add more features to it."* (exit 6) — host
+Projects that need a server runtime (server apps, APIs) are refused
+with a *"not fit for Kailashe at the moment"* message (exit 6) — host
 those on a provider below instead. A successful deploy is recorded in
 `.kailashe/deploy-state.json`, and the same run then generates
 `business-plan.md` and a composed `prompt.md` for Muse in the project
 folder — both addressed at the live URL it just created (`--no-plan`
 skips this). Finish with `kailashe-cloud gate prompt.md`.
 
-For non-static projects, the provider hosting flow (`kailashe-cloud graph` shows the first step) asks which provider to use (it preselects one with a reason; AWS is never preselected), shows an exact plan — resources, commands, monthly cost, rollback — and runs nothing create/modify/delete until you approve.
+For projects that need a server runtime, the provider hosting flow (`kailashe-cloud graph` shows the first step) asks which provider to use (it preselects one with a reason; AWS is never preselected), shows an exact plan — resources, commands, monthly cost, rollback — and runs nothing create/modify/delete until you approve.
+
+## Before & during the hackathon
+
+**Before:** kailashe.com already existed as publishing infrastructure — hosted sites at `https://<name>.kailashe.com`, a remote **Kailashe MCP** server (27 tools) that agents can drive, the **Kailashe CLI** (`kailashe login`, `kailashe publish`), and an agent contract. It could put a site on the internet; everything after that needed a human.
+
+**During (this repo):** Kailashe Cloud connects the platform to Muse. One command — `kailashe-cloud deploy` — reads your project, deploys it to your chosen `<label>.kailashe.com`, verifies it live, and in the same run generates `business-plan.md` + `prompt.md`. From there Muse operates the business: **market research, GTM, a content engine, support, payments through approved connectors, and weekly operations** — with approvals before anything is sent or spent, and unknowns listed instead of invented. Also built: multi-provider hosting (Vercel-first; Cloudflare, Modal, Fly, DigitalOcean, AWS), `kailashe.tech` tenant subdomains, a stdio MCP server, a skill pack, and a 646-test suite. Live proof: https://bcard.kailashe.com. Full story: [HACKATHON.md](HACKATHON.md).
 
 ### How a deploy gets its domain
 
@@ -65,7 +70,7 @@ Kailashe first reads your project (`kailashe-cloud graph`) — detector profile 
 
 Then the flow is:
 
-1. **If the project fits Vercel** (Next.js and other SSR/static front ends), Kailashe offers Vercel first. A Vercel deploy **uses the Vercel domain itself** (`*.vercel.app`) — there is no domain step at all.
+1. **If the project fits Vercel** (Next.js and other front ends), Kailashe offers Vercel first. A Vercel deploy **uses the Vercel domain itself** (`*.vercel.app`) — there is no domain step at all.
 2. **Any other host** (Cloudflare Workers, Modal, Fly, DigitalOcean, … — you log in with that provider's own CLI; Kailashe never takes provider credentials): only now does Kailashe ask *"Do you have a domain?"*
    - **Yes** → Kailashe prints the exact DNS settings (apex + `www` CNAMEs to your deployed host) for you to add at your registrar.
    - **No** → pick a label, e.g. `zi1`, and Kailashe claims `zi1.kailashe.tech` for you: a CNAME to your deployed host with HTTPS on (Cloudflare-proxied Universal SSL, or Vercel DNS automatic TLS, depending on where the `kailashe.tech` zone is hosted). Every label is **globally unique and can be claimed only once** — it stays bound to its first user even after release, and each user holds one active label at a time.
