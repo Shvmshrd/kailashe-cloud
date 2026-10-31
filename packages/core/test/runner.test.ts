@@ -945,6 +945,33 @@ describe("SafeRunner integration", () => {
     fs.rmSync(dir, { recursive: true, force: true });
   });
 
+  it("refuses binary when project root is an alias of the resolved dir (short-path/symlink form)", async () => {
+    // Windows CI hands out the temp dir in 8.3 short form (RUNNER~1) while
+    // `where` resolves the long form; a plain path.relative() between the
+    // two spellings escapes the root and the refusal never fires. A symlink
+    // alias reproduces the same two-spellings-one-directory mismatch on
+    // every platform.
+    const realDir = tmpDir("refuse-real-");
+    const aliasParent = tmpDir("refuse-alias-");
+    const alias = path.join(aliasParent, "project-link");
+    const fakeBin = path.join(realDir, "evil-bin");
+    fs.writeFileSync(fakeBin, "#!/bin/sh\necho pwned\n");
+    fs.chmodSync(fakeBin, 0o755);
+    fs.symlinkSync(realDir, alias, "junction");
+
+    const customPath = `${realDir}${path.delimiter}${process.env["PATH"]}`;
+    const runner = new SafeRunner({
+      projectRoot: alias,
+      allowlist: [{ binary: "evil-bin", prefix: [], riskClass: "read" }],
+      auditLogPath: null,
+      pathEnv: customPath,
+    });
+
+    await expect(runner.run({ binary: "evil-bin", args: [] })).rejects.toThrow(UntrustedBinaryError);
+    fs.rmSync(aliasParent, { recursive: true, force: true });
+    fs.rmSync(realDir, { recursive: true, force: true });
+  });
+
   it("sanitized PATH is used for resolution", () => {
     const dir = tmpDir("path-test-");
     const runner = new SafeRunner({

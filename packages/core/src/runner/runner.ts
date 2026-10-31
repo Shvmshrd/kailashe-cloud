@@ -251,9 +251,32 @@ export async function resolveBinary(
 
 // ── Helpers ───────────────────────────────────────────────────────────────
 
+/**
+ * Canonical spelling of a path: absolute, with symlinks/junctions and
+ * Windows 8.3 short names (RUNNER~1) resolved to the real directory.
+ * Falls back to the plain resolved path when the target does not exist.
+ */
+function canonicalPath(p: string): string {
+  const resolved = path.resolve(p);
+  try {
+    return fs.realpathSync.native(resolved);
+  } catch {
+    return resolved;
+  }
+}
+
 function isInsideDir(candidate: string, dir: string): boolean {
-  const rel = path.relative(dir, candidate);
-  return rel !== "" && !rel.startsWith("..") && !path.isAbsolute(rel);
+  // Compare canonical spellings: the same directory can be spelled two
+  // ways (symlink alias, 8.3 short name on Windows CI), and a plain
+  // path.relative() between spellings escapes the root — which would
+  // let a project-local binary slip past the refusal in run().
+  const rel = path.relative(canonicalPath(dir), canonicalPath(candidate));
+  return (
+    rel !== "" &&
+    rel !== ".." &&
+    !rel.startsWith(`..${path.sep}`) &&
+    !path.isAbsolute(rel)
+  );
 }
 
 function truncate(text: string, maxBytes: number): { text: string; truncated: boolean } {
