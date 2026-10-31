@@ -199,4 +199,52 @@ evals detector accuracy 30/30 (100%, threshold 90%).
   manually; Kailashe prints the complete settings and does not perform
   this step. Test locks the step wording in.
 
+### 2026-11-01 — S16: `kailashe deploy` to kailashe.com (branch slice/s16-kailashe-com-deploy)
+
+- **Contract**: read https://www.kailashe.com/for-agents.md in full
+  (skill_version 7cc156a4ed04) and the platform MCP tool schemas. The
+  integration uses the documented agent route — remote MCP over
+  streamable HTTP at `$BASE/mcp` with a personal Bearer token
+  (`KAILASHE_TOKEN`, falling back to the legacy `ARTIFACT_HUB_TOKEN`
+  name) — instead of ad-hoc upload scripts, exactly as the guide
+  prescribes for MCP-capable agents. One deliberate deviation: the
+  guide's token *files* (`~/.config/kailashe/tokens/…`) are never read,
+  per this repo's "never read provider credential files" rule; the
+  environment variable is the only credential source.
+- **New module** `packages/deploy/src/kailashe-com.ts` (no new
+  dependencies — built-in fetch + existing Zod): static-fit assessment
+  (dynamic/server/non-HTML projects are refused), static-tree collector
+  enforcing platform limits (root `index.html` required; 2000 files /
+  300 MB / 250 MB per file; `node_modules`, `.git` and dot-paths are
+  skipped and reported, which also keeps `.kailashe/` state out of
+  redeploys), and an MCP client (`kailashe_connection` identity check
+  first, inline `kailashe_publish` for small sites,
+  `kailashe_upload_start`/`kailashe_upload_write` 256 KiB chunks +
+  publish-by-`upload_id` above ~1.5 MB; explicit `slug` provisions
+  `https://<slug>.kailashe.com`; share policy always sent explicitly;
+  deterministic content-hash `operation_key` so a retry recovers the
+  same publication instead of creating a copy). Every response is
+  Zod-validated; 401/403 map to an auth error; tokens only ever appear
+  in the Authorization header.
+- **CLI**: new `kailashe deploy [dir] --label <label> [--title] [--base]
+  [--share public|login|none] [--json]`. Flow: detect → static fit
+  (refusal prints "The website is not fit for Kailashe at the moment.
+  Please stick around as we add more features to it.", exit 6, before
+  any network) → label (flag or TTY prompt; exit 3 without one) → token
+  (exit 4 without `KAILASHE_TOKEN`) → publish → record
+  `.kailashe/deploy-state.json` (DeployState schema, live URL as the
+  production address; no secrets) → unauthenticated verification of the
+  live subdomain (3 tries; unverified is exit 5 but keeps the state).
+  Output ends with the share link ("Share this link: …") and the next
+  operator-loop steps naming the live URL for business-plan.md and
+  prompt.md.
+- **Tests**: 630 green workspace-wide (deploy 182 incl. 11 new
+  kailashe-com tests over a fake MCP endpoint; cli 78 incl. 7 new
+  deploy tests with fake client/detector — no network). Typecheck +
+  lint clean. Live smokes on this machine: `deploy` on the vCard static
+  site reaches the token gate (exit 4, no token set); `deploy` on the
+  Express portfolio prints the not-fit message (exit 6). **The real
+  publish is pending the owner's `KAILASHE_TOKEN`** (personal token set
+  in their own terminal — credentials are never pasted into chat).
+
 <!-- Slice reports appended per Appendix B after each slice -->

@@ -14,9 +14,36 @@ npx kailashe doctor        # check node, provider CLIs, env
 npx kailashe validate-pack # validate the skill pack (also runs in CI)
 npx kailashe graph         # read + graph the project, show the first hosting step
 # copy .env.example to .env and set MODEL_API_KEY
-npx kailashe deploy        # detect → choose provider → approve plan → deploy → verify
+npx kailashe deploy . --label bcard   # static sites: publish to kailashe.com → https://bcard.kailashe.com
 npx kailashe operate       # scan → market → plan → prompt.md gate (Execute / Edit / Quit)
 ```
+
+### Deploying a static site to kailashe.com
+
+`kailashe deploy` publishes a **static HTML site** to the hosted
+[kailashe.com](https://www.kailashe.com) platform and returns the live
+address you selected: `https://<label>.kailashe.com`. There is no build
+step — the folder is uploaded as-is, so publish your build output folder
+(`dist/`, `public/`, …) or any folder with an `index.html` at its root.
+
+```sh
+# one-time: create a personal token in your kailashe.com account, then
+# set it in your own terminal (never commit it, never paste it into chat)
+export KAILASHE_TOKEN=…          # PowerShell: $env:KAILASHE_TOKEN = "…"
+npx kailashe deploy ./dist --label bcard        # → https://bcard.kailashe.com
+npx kailashe deploy .                           # asks for the label interactively
+npx kailashe deploy ./dist --label bcard --share none --json
+```
+
+Dynamic projects (server apps, APIs, anything that is not static HTML)
+are refused with *"The website is not fit for Kailashe at the moment.
+Please stick around as we add more features to it."* (exit 6) — host
+those on a provider below instead. A successful deploy is recorded in
+`.kailashe/deploy-state.json`; the business-plan and prompt steps that
+follow read the production URL from there. Publishing uses the
+platform's MCP endpoint (`KAILASHE_TOKEN`, or `KAILASHE_BASE_URL` for a
+self-hosted deployment); the token is sent only as a bearer header and
+is never logged or written to disk.
 
 `deploy` always asks which provider to use (it preselects one with a reason; AWS is never preselected), shows an exact plan — resources, commands, monthly cost, rollback — and runs nothing create/modify/delete until you approve.
 
